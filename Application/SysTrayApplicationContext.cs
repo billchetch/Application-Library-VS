@@ -8,6 +8,10 @@ using System.Threading.Tasks;
 
 namespace Chetch.Application
 {
+    /*
+     * Class for Form based sys tray icon apps
+     * */
+
     abstract public class SysTrayApplicationContext : ApplicationContext
     {
         private Container _components;

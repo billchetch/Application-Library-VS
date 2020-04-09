@@ -6,11 +6,14 @@ using System.Threading;
 
 namespace Chetch.Application
 {
+    /// <summary>
+    /// </summary>
     public class ThreadExecutionState
     {
         public enum ExecutionState
         {
             READY,
+            STARTED,
             EXECUTING,
             COMPLETED
         }
@@ -18,10 +21,32 @@ namespace Chetch.Application
         public String ID { get; internal set; }
         private Object _lock = new object();
 
-        public ExecutionState State { get; set; }
-        public int CurrentQueueSize { get; set; }
+        private ExecutionState _state;
+        public ExecutionState State {
+            get
+            {
+                return _state;
+            }
+            set
+            {
+                _state = value;
+                switch (_state)
+                {
+                    case ExecutionState.STARTED:
+                        Started = DateTime.Now.Ticks; break;
 
-        private int _userState;
+                    case ExecutionState.COMPLETED:
+                        Finished = DateTime.Now.Ticks; break;
+                }
+            }
+        }
+
+        public int CurrentQueueSize { get; set; }
+        public long Started { get; internal set; }
+        public long Finished { get; internal set; }
+
+        private int _userState = -1; //start at -1 because enum by default starts at 0 and user might give enum values for this
+        private Dictionary<int, long> _userStates = null;
         public int UserState
         {
             get
@@ -33,23 +58,40 @@ namespace Chetch.Application
             {
                 lock (_lock)
                 {
+                    if(_userStates == null)
+                    {
+                        _userStates = new Dictionary<int, long>();
+                    }
                     _userState = value;
+                    _userStates[_userState] = DateTime.Now.Ticks;
                 }
             }
         }
+        public Dictionary<int, long> UserStates { get { return _userStates; } }
 
-        private Dictionary<String, Object> _stateValues = new Dictionary<String, Object>();
+        private Dictionary<String, Object> _stateValues = null;
 
         public ThreadExecutionState(String id)
         {
             ID = id;
+            State = ExecutionState.READY;
+        }
+
+        public long UserStateDuration(int s1, int s2, long denominator = 1)
+        {
+            if(_userStates == null || !_userStates.ContainsKey(s1) || !_userStates.ContainsKey(s2))
+            {
+                throw new Exception("Invalid user state");
+            }
+
+            return (_userStates[s1] - _userStates[s2] ) / denominator;
         }
 
         public Object GetValue(String key)
         {
             lock (_lock)
             {
-                if (_stateValues.ContainsKey(key))
+                if (_stateValues != null &&_stateValues.ContainsKey(key))
                 {
                     return _stateValues[key];
                 } else
@@ -63,6 +105,10 @@ namespace Chetch.Application
         {
             lock (_lock)
             {
+                if (_stateValues == null)
+                {
+                    _stateValues = new Dictionary<String, Object>();
+                }
                 _stateValues[key] = val;
             }
         }
@@ -74,7 +120,6 @@ namespace Chetch.Application
     ///  Provide a method with an argument type to be executed synchrnously if the user supplied thread ID is the same (adn the queue size allows)
     ///  or asynchronously if the thread ID id different.  Each method may also be repetedly executed with a delay.
     /// </summary>
-    /// <typeparam name="T">The type of parameter to pass to the method to be executedin the thread</typeparam>
     public class ThreadExecutionManager
     {
         public abstract class ThreadExecution
@@ -88,11 +133,12 @@ namespace Chetch.Application
 
         public class ThreadExecution<T> : ThreadExecution
         {
+            public Action NoArgumentsAction { get; internal set; } = null;
             public Action<T> SimpleAction { get; internal set; } = null;
             public Action<String, T> CommandAction { get; internal set; } = null;
             public Action<T, ThreadExecutionState> StateAction { get; internal set; } = null;
             public String Command { get; internal set; } = null;
-            public T Arguments { get; internal set; } = default(T);
+            public T Arguments { get; set; } = default(T);
             
             public ThreadExecution(String id, Action<String, T> action, String commandName, T arguments = default(T))
             {
@@ -100,6 +146,7 @@ namespace Chetch.Application
                 CommandAction = action;
                 SimpleAction = null;
                 StateAction = null;
+                NoArgumentsAction = null;
                 Command = commandName;
                 Arguments = arguments;
             }
@@ -110,8 +157,19 @@ namespace Chetch.Application
                 SimpleAction = action;
                 CommandAction = null;
                 StateAction = null;
+                NoArgumentsAction = null;
                 Command = null;
                 Arguments = arguments;
+            }
+
+            public ThreadExecution(String id, Action<T> action)
+            {
+                ID = id;
+                SimpleAction = action;
+                CommandAction = null;
+                StateAction = null;
+                NoArgumentsAction = null;
+                Command = null;
             }
 
             public ThreadExecution(String id, Action<T, ThreadExecutionState> action, T arguments = default(T))
@@ -124,6 +182,16 @@ namespace Chetch.Application
                 Arguments = arguments;
             }
 
+            public ThreadExecution(String id, Action action)
+            {
+                ID = id;
+                SimpleAction = null;
+                CommandAction = null;
+                StateAction = null;
+                NoArgumentsAction = action;
+                Command = null;
+            }
+
             override public void Execute(ThreadExecutionState executionState)
             {
                 List<Exception> exceptions = new List<Exception>();
@@ -134,6 +202,7 @@ namespace Chetch.Application
                         CommandAction?.Invoke(Command, Arguments);
                         SimpleAction?.Invoke(Arguments);
                         StateAction?.Invoke(Arguments, executionState);
+                        NoArgumentsAction?.Invoke();
                         if (Delay > 0)
                         {
                             Thread.Sleep(Delay);
@@ -168,6 +237,7 @@ namespace Chetch.Application
                 {
                     ThreadHandle = new Thread(this.ExecuteQueue);
                     ThreadHandle.Start();
+                    ExecutionState.State = ThreadExecutionState.ExecutionState.STARTED;
                 }
             }
 
@@ -189,6 +259,10 @@ namespace Chetch.Application
         static private Dictionary<String, ThreadExecutionQueue> ExecutionQueues { get; set; } = new Dictionary<String, ThreadExecutionQueue>();
         static public int MaxQueueSize { get; set; } = 1;
 
+        static public bool IsEmpty(String executionId)
+        {
+            return (!ExecutionQueues.ContainsKey(executionId) || ExecutionQueues[executionId].Count == 0);
+        }
 
         static public bool CanEnqueue(String executionId)
         {
@@ -251,6 +325,30 @@ namespace Chetch.Application
             return GetExecutionState(executionId);
         }
 
+
+        /// <summary>
+        /// Execute method for special case 'simple' action
+        /// </summary>
+        static public ThreadExecutionState Execute(String executionId, Action<ThreadExecutionState> action)
+        {
+            return Execute(executionId, 1, 0, action);
+        }
+
+        /// <summary>
+        /// Execute method for special case 'simple' action
+        /// </summary>
+        static public ThreadExecutionState Execute(String executionId, int repeat, int delay, Action<ThreadExecutionState> action)
+        {
+            if (!CanEnqueue(executionId)) return null;
+
+            var x = new ThreadExecution<ThreadExecutionState>(executionId, action);
+            Enqueue(x);
+            ThreadExecutionState xs = GetExecutionState(executionId);
+            x.Arguments = xs; 
+            return xs;
+        }
+
+
         /// <summary>
         /// Execute method for 'state' action
         /// </summary>
@@ -272,6 +370,31 @@ namespace Chetch.Application
             return GetExecutionState(executionId);
         }
 
+
+        /// <summary>
+        /// Execute method for 'no arguments' action
+        /// </summary>
+        static public ThreadExecutionState Execute(String executionId, Action action)
+        {
+            return Execute(executionId, 1, 0, action);
+        }
+
+        /// <summary>
+        /// Execute method for 'no arguments' action
+        /// </summary>
+        static public ThreadExecutionState Execute(String executionId, int repeat, int delay, Action action)
+        {
+            if (!CanEnqueue(executionId)) return null;
+
+            ThreadExecution x = new ThreadExecution<Object>(executionId, action);
+            Enqueue(x);
+
+            return GetExecutionState(executionId);
+        }
+
+        /// <summary>
+        /// Get Execution state by execution ID
+        /// </summary>
         static public ThreadExecutionState GetExecutionState(String executionId)
         {
             if (ExecutionQueues.ContainsKey(executionId))

@@ -15,7 +15,8 @@ namespace Chetch.Application
             READY,
             STARTED,
             EXECUTING,
-            COMPLETED
+            COMPLETED,
+            ABORTED
         }
 
         public String ID { get; internal set; }
@@ -220,7 +221,7 @@ namespace Chetch.Application
         class ThreadExecutionQueue : Queue<ThreadExecution>
         {
             String ID { get; set; }
-            Thread ThreadHandle;
+            Thread ThreadHandle = null;
             public ThreadExecutionState ExecutionState;
 
             public ThreadExecutionQueue(String id)
@@ -253,6 +254,20 @@ namespace Chetch.Application
                     Dequeue();
                 }
                 ExecutionState.State = ThreadExecutionState.ExecutionState.COMPLETED;
+            }
+
+            public void Terminate()
+            {
+                if (ExecutionState.State == ThreadExecutionState.ExecutionState.READY)
+                {
+                    throw new Exception("Cannot terminate as not yet started");
+                }
+
+                if(ExecutionState.State != ThreadExecutionState.ExecutionState.COMPLETED)
+                {
+                    ThreadHandle.Abort();
+                    ExecutionState.State = ThreadExecutionState.ExecutionState.ABORTED;
+                }
             }
         }
 
@@ -403,6 +418,17 @@ namespace Chetch.Application
             } else
             {
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Get Execution state by execution ID
+        /// </summary>
+        static public void Terminate(String executionId)
+        {
+            if (ExecutionQueues.ContainsKey(executionId))
+            {
+                ExecutionQueues[executionId].Terminate();
             }
         }
     }

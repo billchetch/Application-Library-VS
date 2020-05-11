@@ -37,15 +37,21 @@ namespace Chetch.Application
                         Started = DateTime.Now.Ticks; break;
 
                     case ExecutionState.COMPLETED:
+                    case ExecutionState.ABORTED:
                         Finished = DateTime.Now.Ticks; break;
                 }
             }
         }
-
+        public List<Exception> Exceptions { get; internal set; } = new List<Exception>();
         public int CurrentQueueSize { get; set; }
         public long Started { get; internal set; }
         public long Finished { get; internal set; }
-
+        public bool IsFinished {
+            get
+            {
+                return _state == ExecutionState.COMPLETED || _state == ExecutionState.ABORTED;
+            }
+        }
         private int _userState = -1; //start at -1 because enum by default starts at 0 and user might give enum values for this
         private Dictionary<int, long> _userStates = null;
         public int UserState
@@ -128,6 +134,7 @@ namespace Chetch.Application
             public String ID { get; internal set; } = null;
             public int Repeat { get; set; } = 1;
             public int Delay { get; set; } = 0;
+            public List<Exception> Exceptions { get; internal set; } = new List<Exception>();
 
             abstract public void Execute(ThreadExecutionState executionState);
         }
@@ -195,7 +202,6 @@ namespace Chetch.Application
 
             override public void Execute(ThreadExecutionState executionState)
             {
-                List<Exception> exceptions = new List<Exception>();
                 for (int i = 0; i < Repeat; i++)
                 {
                     try
@@ -211,7 +217,7 @@ namespace Chetch.Application
                     }
                     catch (Exception e)
                     {
-                        exceptions.Add(e);
+                        Exceptions.Add(e);
                     }
                 }
             }
@@ -239,6 +245,7 @@ namespace Chetch.Application
                     ThreadHandle = new Thread(this.ExecuteQueue);
                     ThreadHandle.Start();
                     ExecutionState.State = ThreadExecutionState.ExecutionState.STARTED;
+                    ExecutionState.Exceptions.Clear();
                 }
             }
 
@@ -251,6 +258,7 @@ namespace Chetch.Application
 
                     ThreadExecution x = Peek();
                     x.Execute(ExecutionState);
+                    ExecutionState.Exceptions.AddRange(x.Exceptions);
                     Dequeue();
                 }
                 ExecutionState.State = ThreadExecutionState.ExecutionState.COMPLETED;
@@ -267,12 +275,32 @@ namespace Chetch.Application
                 {
                     ThreadHandle.Abort();
                     ExecutionState.State = ThreadExecutionState.ExecutionState.ABORTED;
+                    Clear();
                 }
             }
         }
 
         static private Dictionary<String, ThreadExecutionQueue> ExecutionQueues { get; set; } = new Dictionary<String, ThreadExecutionQueue>();
         static public int MaxQueueSize { get; set; } = 1;
+
+        static public List<String> GetActiveExecutionIDs()
+        {
+            var list = new List<String>();
+            foreach (var k in ExecutionQueues.Keys)
+            {
+                if (!IsEmpty(k))list.Add(k);
+            }
+            return list;
+        }
+
+        static public bool IsEmpty()
+        {
+            foreach (var k in ExecutionQueues.Keys)
+            {
+                if (!IsEmpty(k)) return false;
+            }
+            return true;
+        }
 
         static public bool IsEmpty(String executionId)
         {

@@ -343,6 +343,8 @@ namespace Chetch.Application
             if (!CanEnqueue(executionId)) return GetExecutionState(executionId);
 
             ThreadExecution<T> x = new ThreadExecution<T>(executionId, action, command, args);
+            x.Repeat = repeat;
+            x.Delay = delay;
             Enqueue(x);
             return GetExecutionState(executionId);
         }
@@ -363,6 +365,8 @@ namespace Chetch.Application
             if (!CanEnqueue(executionId)) return null;
 
             ThreadExecution x = new ThreadExecution<T>(executionId, action, args);
+            x.Repeat = repeat;
+            x.Delay = delay;
             Enqueue(x);
 
             return GetExecutionState(executionId);
@@ -385,6 +389,8 @@ namespace Chetch.Application
             if (!CanEnqueue(executionId)) return null;
 
             var x = new ThreadExecution<ThreadExecutionState>(executionId, action);
+            x.Repeat = repeat;
+            x.Delay = delay;
             Enqueue(x);
             ThreadExecutionState xs = GetExecutionState(executionId);
             x.Arguments = xs; 
@@ -408,6 +414,8 @@ namespace Chetch.Application
             if (!CanEnqueue(executionId)) return null;
 
             ThreadExecution x = new ThreadExecution<T>(executionId, action, args);
+            x.Repeat = repeat;
+            x.Delay = delay;
             Enqueue(x);
 
             return GetExecutionState(executionId);
@@ -430,6 +438,8 @@ namespace Chetch.Application
             if (!CanEnqueue(executionId)) return null;
 
             ThreadExecution x = new ThreadExecution<Object>(executionId, action);
+            x.Repeat = repeat;
+            x.Delay = delay;
             Enqueue(x);
 
             return GetExecutionState(executionId);

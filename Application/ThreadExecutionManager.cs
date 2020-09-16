@@ -144,7 +144,9 @@ namespace Chetch.Application
             public Action NoArgumentsAction { get; internal set; } = null;
             public Action<T> SimpleAction { get; internal set; } = null;
             public Action<String, T> CommandAction { get; internal set; } = null;
+            public Action<String, String, T> TargetCommandAction { get; internal set; } = null;
             public Action<T, ThreadExecutionState> StateAction { get; internal set; } = null;
+            public String Target { get; internal set; } = null;
             public String Command { get; internal set; } = null;
             public T Arguments { get; set; } = default(T);
             
@@ -155,6 +157,20 @@ namespace Chetch.Application
                 SimpleAction = null;
                 StateAction = null;
                 NoArgumentsAction = null;
+                TargetCommandAction = null;
+                Command = commandName;
+                Arguments = arguments;
+            }
+
+            public ThreadExecution(String id, Action<String, String, T> action, String target, String commandName, T arguments = default(T))
+            {
+                ID = id;
+                CommandAction = null;
+                SimpleAction = null;
+                StateAction = null;
+                NoArgumentsAction = null;
+                TargetCommandAction = action;
+                Target = target;
                 Command = commandName;
                 Arguments = arguments;
             }
@@ -166,6 +182,7 @@ namespace Chetch.Application
                 CommandAction = null;
                 StateAction = null;
                 NoArgumentsAction = null;
+                TargetCommandAction = null;
                 Command = null;
                 Arguments = arguments;
             }
@@ -177,6 +194,7 @@ namespace Chetch.Application
                 CommandAction = null;
                 StateAction = null;
                 NoArgumentsAction = null;
+                TargetCommandAction = null;
                 Command = null;
             }
 
@@ -185,6 +203,7 @@ namespace Chetch.Application
                 ID = id;
                 SimpleAction = null;
                 CommandAction = null;
+                TargetCommandAction = null;
                 StateAction = action;
                 Command = null;
                 Arguments = arguments;
@@ -197,6 +216,7 @@ namespace Chetch.Application
                 CommandAction = null;
                 StateAction = null;
                 NoArgumentsAction = action;
+                TargetCommandAction = null;
                 Command = null;
             }
 
@@ -210,6 +230,7 @@ namespace Chetch.Application
                         SimpleAction?.Invoke(Arguments);
                         StateAction?.Invoke(Arguments, executionState);
                         NoArgumentsAction?.Invoke();
+                        TargetCommandAction?.Invoke(Target, Command, Arguments);
                         if (Delay > 0)
                         {
                             Thread.Sleep(Delay);

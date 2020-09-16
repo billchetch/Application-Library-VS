@@ -371,6 +371,28 @@ namespace Chetch.Application
         }
 
         /// <summary>
+        /// Execute method for 'targeted command' action
+        /// </summary>
+        static public ThreadExecutionState Execute<T>(String executionId, Action<String, String, T> action, String target, String command, T args = default(T))
+        {
+            return Execute<T>(executionId, 1, 0, action, target, command, args);
+        }
+
+        /// <summary>
+        /// Execute method for 'command' action
+        /// </summary>
+        static public ThreadExecutionState Execute<T>(String executionId, int repeat, int delay, Action<String, String, T> action, String target, String command, T args = default(T))
+        {
+            if (!CanEnqueue(executionId)) return GetExecutionState(executionId);
+
+            ThreadExecution<T> x = new ThreadExecution<T>(executionId, action, target, command, args);
+            x.Repeat = repeat;
+            x.Delay = delay;
+            Enqueue(x);
+            return GetExecutionState(executionId);
+        }
+
+        /// <summary>
         /// Execute method for 'simple' action
         /// </summary>
         static public ThreadExecutionState Execute<T>(String executionId,  Action<T> action, T args = default(T))

@@ -18,21 +18,24 @@ namespace Chetch.Application
         protected NotifyIcon NotifyIcon;
         private Form _mainForm;
         
-        public SysTrayApplicationContext()
+        public SysTrayApplicationContext(bool asSysTray = true)
         {
-            InitializeContext();
+            InitializeContext(asSysTray);
         }
 
-        virtual protected void InitializeContext()
+        virtual protected void InitializeContext(bool asSysTray)
         {
-            _components = new Container();
-            NotifyIcon = new NotifyIcon(_components);
-            NotifyIcon.Visible = true;
-            NotifyIcon.DoubleClick += new EventHandler(this.notifyIcon_DoubleClick);
-            
-            NotifyIcon.ContextMenu = new System.Windows.Forms.ContextMenu();
-            AddNotifyIconContextMenuItem("Open...", "Open");
-            AddNotifyIconContextMenuItem("Exit");
+            if (asSysTray)
+            {
+                _components = new Container();
+                NotifyIcon = new NotifyIcon(_components);
+                NotifyIcon.Visible = true;
+                NotifyIcon.DoubleClick += new EventHandler(this.notifyIcon_DoubleClick);
+
+                NotifyIcon.ContextMenu = new System.Windows.Forms.ContextMenu();
+                AddNotifyIconContextMenuItem("Open...", "Open");
+                AddNotifyIconContextMenuItem("Exit");
+            }
         }
 
         protected void AddNotifyIconContextMenuItem(String text, String tag = null)
@@ -84,7 +87,7 @@ namespace Chetch.Application
         protected override void ExitThreadCore()
         {
             if (_mainForm != null) { _mainForm.Close(); }
-            NotifyIcon.Visible = false; // should remove lingering tray icon!
+            if (NotifyIcon != null) { NotifyIcon.Visible = false; } // should remove lingering tray icon!
             base.ExitThreadCore();
         }
     }
